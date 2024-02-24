@@ -1,0 +1,21 @@
+function multiclass(biggestBlob)
+  
+  ntot = numel(biggestBlob);
+  nblack = length( biggestBlob(biggestBlob~=0) );
+  nwhite=ntot-nblack;
+  
+  if nwhite>40000
+    h = msgbox('Abnormalities detected!!','error');
+   disp(' Chronic Kindney disease present');
+else if nwhite>38000
+    h = msgbox('Abnormalities detected!!','error');
+    disp('Diabetic kidney disease present');
+   
+    else if nwhite>36000
+        h = msgbox('Abnormalities detected!!','error');
+    disp('Glomerular Disease present');
+        else
+            h = msgbox('No Abnormalities detected!!','error');
+    disp('No Symptoms for kidney Disease ');
+    end
+end

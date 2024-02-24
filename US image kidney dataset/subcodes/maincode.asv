@@ -1,0 +1,219 @@
+clc;
+clear all;
+close all;
+warning off;
+addpath('BBO');
+addpath('ALO');
+addpath('GWO');
+
+%% INITIALIZATION
+
+SearchAgents_no=30;
+N=10;  
+Function_name='F1'; 
+Fun_name='F10';
+Max_iter=200; 
+%% LOAD INPUT DATASET
+[A]=imread('2.jpg');
+figure;
+imshow(A);
+image = im2double(A(:,:,1));
+H1 = fspecial('gaussian',21,15);
+H2 = fspecial('gaussian',21,20);
+dog = H1 - H2;
+dogFilterImage1 = conv2(image,dog,'same');
+figure;
+imshow(dogFilterImage1,[]);
+
+%% SEGMENTATION
+
+m = zeros(size(A,1),size(A,2));          %-- create initial mask
+% m(111:222,123:234) = 1;
+m(200:250,201:255) = 1;
+A = imresize(A,.5);  
+m = imresize(m,.5);  
+figure;
+sgtitle('Segmentation');
+% subplot(2,2,2); 
+% imshow(m); 
+% title('Initial Mask');
+subplot(1,2,1); 
+title('Segmentation');
+seg = region_seg(A, m, 200)
+subplot(1,2,2); 
+imshow(seg); 
+title('Contour Based Segmented Image');
+Z = linkage(m,'ward');
+% figure;
+% dendrogram(Z);
+
+%  labeledImage = bwlabel(seg);
+%  measurements = regionprops(labeledImage, 'Area');
+%  allAreas = [measurements.Area];
+%  [biggestArea, indexOfBiggest] = sort(allAreas, 'descend')
+%  biggestBlob = ismember(labeledImage, indexOfBiggest(1))
+%  biggestBlob = biggestBlob > 0;
+%  figure;
+%  imshow(biggestBlob);
+ biggestBlob=seg;
+%  imwrite(biggestBlob,'num2str(i).jpg');
+% %% FEATURE EXTRACTION
+% [features1,features2,features3,features4,features5,features6]=agglomerativenest(seg);
+% F1=[features1; features2; features3];
+% F2=[features4; features5;features6];
+% similarity = seqAlign(F1,F2)
+% % S=[1 0; 0 1; 1 1];
+% similarityFunHandle=@myFun;
+% [alignment,value]=seqAlign(F1,F2,S,similarityFunHandle);
+
+% [Score, Alignment] = nwalign(F1,F2);
+mean=mean2(biggestBlob);
+      Std=std2(biggestBlob);
+      Skew=skewness(biggestBlob);
+      bwp=edge(biggestBlob,'sobel');
+      area=sum(sum(biggestBlob));
+      peri=sum(sum(bwp));
+      compact=peri^2/area;
+      smoothness=1/(1+Std^2);
+      nh=biggestBlob/area;
+      uniformity=sum(nh.^2);
+      entropy=sum(nh.*log10(nh));
+      correlation=sum(nh'*biggestBlob)-mean/Std;
+      F_SHAPE=[area peri uniformity];
+      F_TEXTURE=[mean Std compact smoothness entropy correlation];
+      GLCM2 = graycomatrix(biggestBlob,'Offset',[1 1]);
+      stats = graycoprops(GLCM2);
+      T{1,4}=stats.Contrast;
+      T{1,5}=stats.Correlation;
+      T{1,6}=stats.Energy;
+      T{1,7}=stats.Homogeneity;
+      F_GLCM=[T{1,4} T{1,5} T{1,6} T{1,7}];
+
+      % GLRM Feature Extraction
+      BW = int8(biggestBlob == i);
+      BWr = int8(biggestBlob == i);    
+    
+      % find the start and end points of the run length
+      G0e = (BW(2:end-1,2:end-1) - BW(2:end-1,3:end)) == 1;
+      G0s = (BW(2:end-1,2:end-1) - BW(2:end-1,1:end-2)) == 1;
+      G45e = (BWr(2:end-1,2:end-1) - BWr(2:end-1,3:end)) == 1;
+      G45s = (BWr(2:end-1,2:end-1) - BWr(2:end-1,1:end-2)) == 1;
+      G90e = (BW(2:end-1,2:end-1) - BW(3:end,2:end-1)) == 1;
+      G90s = (BW(2:end-1,2:end-1) - BW(1:end-2,2:end-1)) == 1;
+      G135e = (BWr(2:end-1,2:end-1) - BWr(3:end,2:end-1)) == 1;
+      G135s = (BWr(2:end-1,2:end-1) - BWr(1:end-2,2:end-1)) == 1;
+    
+      % find the indexes
+      G0s = G0s'; G0s = find(G0s(:));
+      G0e = G0e'; G0e = find(G0e(:));
+      G45s = G45s'; G45s = find(G45s(:));
+      G45e = G45e'; G45e = find(G45e(:));
+      G90s = find(G90s(:));
+      G90e = find(G90e(:));
+      G135s = find(G135s(:));
+      G135e = find(G135e(:));
+ 
+      % find the lengths
+      lengths0 = G0e - G0s + 1;
+      lengths45 = G45e - G45s + 1;
+      lengths90 = G90e - G90s + 1;
+      lengths135 = G135e - G135s + 1;
+      maximgS = max(size(biggestBlob));
+      
+      % fill the matrix
+      p0(1,:) = hist(lengths0,1:maximgS);
+      p45(1,:) = hist(lengths45,1:maximgS);
+      p90(1,:) = hist(lengths90,1:maximgS);
+      p135(1,:) = hist(lengths135,1:maximgS); 
+      
+      % add all orientations
+      p = p0 + p45 + p90 + p135;
+      % calculate the features
+      totSum = sum(p(:));
+      SRE = sum(sum(p,1) ./ ((1:maximgS).^2)) / totSum;
+      LRE = sum(sum(p,1) .* ((1:maximgS).^2)) / totSum;
+      RLN = sum(sum(p,1) .^2) / totSum;
+      GLN = sum(sum(p,2) .^2) / totSum;
+      HGRE = sum(sum(p,2) .^2) / totSum;
+     
+      F_GLRM=[SRE LRE RLN GLN HGRE];
+      
+       maxLength = max([length(F_SHAPE), length(F_TEXTURE), length(F_GLCM), length(F_GLRM)]);
+  F_SHAPE(length(F_SHAPE)+1:maxLength) = 0;
+  F_TEXTURE(length(F_TEXTURE)+1:maxLength) = 0;
+  F_GLCM(length(F_GLCM)+1:maxLength) = 0;
+  F_GLRM(length(F_GLRM)+1:maxLength) = 0;
+  F_FUSED=[F_SHAPE;F_TEXTURE;F_GLRM;F_GLCM];
+ 
+  %% CLASSIFICATION & OPTIMIZATION
+  
+trainFcn = 'trainlm';  
+Inpnn=[F_FUSED];
+%Train the networks
+for i=1:100  %vary number of hidden layer neurons from 1 to 100
+    hiddenLayerSize = i; %number of hidden layer neurons
+    net = fitnet(hiddenLayerSize,trainFcn); %create a fitting network
+    net.divideParam.trainRatio = 70/100;  %use 70% of data for training 
+    net.divideParam.valRatio = 15/100;  %15% for validation
+    net.divideParam.testRatio = 15/100; %15% for testing
+%     save(['networks\net' num2str(i)],'net');  %save the network in networks folder
+end
+% % BAT optimized Neuro Fuzzy
+
+[lb,ub,dim,fobj]=Get_Functions_detail(Fun_name);
+[Best_score,Best_pos,GWO_cg_curve]=GWO(SearchAgents_no,Max_iter,lb,ub,dim,fobj);
+
+[lb,ub,dim,fobj]=Get_Functions_details(Function_name);
+[bestfit,BestPositions,fmax,BAT_Cg_curve]=newBAT(N,Max_iter,lb,ub,dim,fobj);
+
+figure;
+semilogy(BAT_Cg_curve,'Color','r')
+semilogy(GWO_cg_curve
+hold on
+title('Objective space')
+xlabel('iteration');
+ylabel('Best fitness');
+axis tight
+grid on
+box on
+legend('BAT Optimization')
+
+display(['The best solution obtained by BAT is : ', num2str(BestPositions)]);
+display(['The best optimal value of the objective funciton found by BAT is : ', num2str(bestfit)]);
+
+%Accuracy Calculation
+Tarnn = ones(size(Inpnn,1),1);
+[Acc,sensitivity,specificity,f1score]= Res50Classification(Inpnn,Tarnn);
+disp('%%% ===== CNN(Resnet 50)Classifier PERFORMANCE=====%%%')
+disp([' Accuracy = ' num2str(Acc)])
+disp([' Precision = ' num2str(sensitivity)])
+disp([' Specificity = ' num2str(specificity)])
+disp([' F1 score = ' num2str(f1score)])
+
+[Acc,sensitivity,specificity,f1score]= CNNclassification(Inpnn,Tarnn);
+disp('%%% ===== CNN Classifier PERFORMANCE=====%%%')
+disp([' Accuracy = ' num2str(Acc)])
+disp([' Precision = ' num2str(sensitivity)])
+disp([' Specificity = ' num2str(specificity)])
+disp([' F1 score = ' num2str(f1score)])
+[precision,specificity,Acc,f1score] = DeepLearning(Inpnn,Tarnn);
+
+disp('========= Performance Analysis of DeepLearning ========')
+disp([' Accuracy = ' num2str(Acc)])
+disp([' Precision = ' num2str(precision)])
+disp([' Specificity = ' num2str(specificity)])
+disp([' F1 score = ' num2str(f1score)])
+
+[precision,specificity,Acc,f1score]= ANN(Inpnn,Tarnn);
+disp('========= Performance Analysis of ANN ========')
+disp([' Accuracy = ' num2str(Acc)])
+disp([' Precision = ' num2str(precision)])
+disp([' Specificity = ' num2str(specificity)])
+disp([' F1 score = ' num2str(f1score)])
+
+[Acc,precision,specificity,f1score] = NNClass(Inpnn,Tarnn);
+disp('========= Performance Analysis of ANN ========')
+disp([' Accuracy = ' num2str(Acc)])
+disp([' Precision = ' num2str(precision)])
+disp([' Specificity = ' num2str(specificity)])
+disp([' F1 score = ' num2str(f1score)])
